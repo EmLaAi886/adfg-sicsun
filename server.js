@@ -495,7 +495,7 @@ app.get('/predict', async (req, res) => {
         Xuc_xac_3: latestOriginal?.facesList?.[2] || 0,
         Tong: latestOriginal?.score || 0,
         Ket_qua: getResultType(latestOriginal),
-        phien_hien_tai: curentphien,
+        phien_hien_tai: currentPhien, // Fixed typo here
         du_doan: lastPrediction.du_doan,
         dudoan_vi: lastPrediction.doan_vi.join(", "),
         do_tin_cay: lastPrediction.do_tin_cay,
@@ -509,4 +509,3 @@ app.listen(PORT, () => {
     updateHistory();
     setInterval(updateHistory, UPDATE_INTERVAL);
 });
-
