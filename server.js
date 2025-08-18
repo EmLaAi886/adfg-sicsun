@@ -408,7 +408,7 @@ app.get('/predict', async (req, res) => {
         do_tin_cay: lastPrediction.do_tin_cay,
         Ghi_chu: lastPrediction.reason
     });
-
+});   // ✅ thêm dấu đóng cho app.get
 
 // --- KHỞI ĐỘNG SERVER ---
 app.listen(PORT, () => {
