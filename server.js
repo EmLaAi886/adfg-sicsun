@@ -57,10 +57,10 @@ async function updateHistory() {
             historyData = res.data.data.resultList;
             // Chuyển đổi dữ liệu API về định dạng mới
             historyData = historyData.map(item => ({
-                session: item.gameNum,
-                result: getResultType(item),
-                totalScore: item.score
-            }));
+    session: item.gameNum.replace('#', ''), // Xóa dấu #
+    result: getResultType(item),
+    totalScore: item.score
+}));
         }
     } catch (e) {
         console.error('Lỗi cập nhật:', e.message);
@@ -367,8 +367,8 @@ app.get('/predict', async (req, res) => {
     await updateHistory();
     const latest = historyData[0] || {};
     const currentPhien = latest.session;
-    // Sửa lỗi ở đây
-    const nextPhien = currentPhien ? `#${parseInt(currentPhien.replace('#', '')) + 1}` : '#1';
+// Sửa thành số nguyên đơn giản, không có dấu #
+const nextPhien = currentPhien ? (parseInt(currentPhien) + 1).toString() : '1';
 
     if (currentPhien !== lastPrediction.phien) {
         const { prediction, confidence, reason } = generatePrediction(historyData);
@@ -396,18 +396,18 @@ app.get('/predict', async (req, res) => {
     const latestOriginal = (await axios.get(API_URL)).data.data.resultList[0];
 
         res.json({
-        Phien: currentPhien, // Phiên đã có kết quả
-        Xuc_xac_1: latestOriginal?.facesList?.[0] || 0,
-        Xuc_xac_2: latestOriginal?.facesList?.[1] || 0,
-        Xuc_xac_3: latestOriginal?.facesList?.[2] || 0,
-        Tong: latestOriginal?.score || 0,
-        Ket_qua: getResultType(latestOriginal),
-        phien_hien_tai: nextPhien, // Phiên cần dự đoán
-        du_doan: lastPrediction.du_doan,
-        dudoan_vi: lastPrediction.doan_vi.join(", "),
-        do_tin_cay: lastPrediction.do_tin_cay,
-        Ghi_chu: lastPrediction.reason
-    });
+    Phien: currentPhien, // Đã không còn dấu #
+    Xuc_xac_1: latestOriginal?.facesList?.[0] || 0,
+    Xuc_xac_2: latestOriginal?.facesList?.[1] || 0,
+    Xuc_xac_3: latestOriginal?.facesList?.[2] || 0,
+    Tong: latestOriginal?.score || 0,
+    Ket_qua: getResultType(latestOriginal),
+    phien_hien_tai: nextPhien, // Đã không còn dấu #
+    du_doan: lastPrediction.du_doan,
+    dudoan_vi: lastPrediction.doan_vi.join(", "),
+    do_tin_cay: lastPrediction.do_tin_cay,
+    Ghi_chu: lastPrediction.reason
+});
 });   // ✅ thêm dấu đóng cho app.get
 
 // --- KHỞI ĐỘNG SERVER ---
@@ -416,3 +416,4 @@ app.listen(PORT, () => {
     updateHistory();
     setInterval(updateHistory, UPDATE_INTERVAL);
 });
+ 
