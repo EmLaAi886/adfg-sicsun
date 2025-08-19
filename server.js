@@ -406,7 +406,6 @@ const nextPhien = currentPhien ? (parseInt(currentPhien) + 1).toString() : '1';
     du_doan: lastPrediction.du_doan,
     dudoan_vi: lastPrediction.doan_vi.join(", "),
     do_tin_cay: lastPrediction.do_tin_cay,
-    Ghi_chu: lastPrediction.reason
 });
 });   // ✅ thêm dấu đóng cho app.get
 
