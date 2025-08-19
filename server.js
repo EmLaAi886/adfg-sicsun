@@ -396,17 +396,16 @@ const nextPhien = currentPhien ? (parseInt(currentPhien) + 1).toString() : '1';
     const latestOriginal = (await axios.get(API_URL)).data.data.resultList[0];
 
         res.json({
-    Phien: currentPhien, // Đã không còn dấu #
+    Phien: parseInt(currentPhien), // ép về số nguyên
     Xuc_xac_1: latestOriginal?.facesList?.[0] || 0,
     Xuc_xac_2: latestOriginal?.facesList?.[1] || 0,
     Xuc_xac_3: latestOriginal?.facesList?.[2] || 0,
     Tong: latestOriginal?.score || 0,
     Ket_qua: getResultType(latestOriginal),
-    phien_hien_tai: nextPhien, // Đã không còn dấu #
+    phien_hien_tai: parseInt(nextPhien), // ép về số nguyên
     du_doan: lastPrediction.du_doan,
-    dudoan_vi: lastPrediction.doan_vi.join(", "),
-    do_tin_cay: lastPrediction.do_tin_cay,
-    Ghi_chu: lastPrediction.reason
+    dudoan_vi: lastPrediction.doan_vi, // giữ nguyên dạng mảng
+    do_tin_cay: parseFloat(lastPrediction.do_tin_cay) // ép thành số thay vì string "%"
 });
 });   // ✅ thêm dấu đóng cho app.get
 
