@@ -57,19 +57,13 @@ async function updateHistory() {
             historyData = res.data.data.resultList;
             // Chuyển đổi dữ liệu API về định dạng mới
             historyData = historyData.map(item => ({
-                session: item.gameNum.replace('#', ''), // Xóa dấu #
-                result: getResultType(item),
-                totalScore: item.score
-            }));
+    session: item.gameNum.replace('#', ''), // Xóa dấu #
+    result: getResultType(item),
+    totalScore: item.score
+}));
         }
     } catch (e) {
-        console.error('❌ Lỗi cập nhật:', e.message);
-
-        // Nếu API trả lỗi có response
-        if (e.response) {
-            console.error('⚠️ Status:', e.response.status);
-            console.error('⚠️ Data:', JSON.stringify(e.response.data, null, 2));
-        }
+        console.error('Lỗi cập nhật:', e.message);
     }
 }
 
@@ -370,57 +364,51 @@ app.post('/report-result', (req, res) => {
 });
 
 app.get('/predict', async (req, res) => {
-    try {
-        await updateHistory();
-        const latest = historyData[0] || {};
-        const currentPhien = latest.session;
+    await updateHistory();
+    const latest = historyData[0] || {};
+    const currentPhien = latest.session;
+// Sửa thành số nguyên đơn giản, không có dấu #
+const nextPhien = currentPhien ? (parseInt(currentPhien) + 1).toString() : '1';
 
-        // Sửa thành số nguyên đơn giản, không có dấu #
-        const nextPhien = currentPhien ? (parseInt(currentPhien) + 1).toString() : '1';
+    if (currentPhien !== lastPrediction.phien) {
+        const { prediction, confidence, reason } = generatePrediction(historyData);
+        const doan_vi = predictTopSums(historyData, prediction, 3);
 
-        if (currentPhien !== lastPrediction.phien) {
-            const { prediction, confidence, reason } = generatePrediction(historyData);
-            const doan_vi = predictTopSums(historyData, prediction, 3);
+        lastPrediction = {
+            phien: currentPhien,
+            du_doan: prediction,
+            doan_vi: doan_vi,
+            do_tin_cay: confidence,
+            reason: reason
+        };
 
-            lastPrediction = {
-                phien: currentPhien,
-                du_doan: prediction,
-                doan_vi: doan_vi,
-                do_tin_cay: confidence,
-                reason: reason
-            };
+        appendPredictionHistory({
+            phien: currentPhien,
+            du_doan: prediction,
+            doan_vi: doan_vi,
+            do_tin_cay: confidence,
+            reason: reason,
+            ket_qua_thuc: null,
+            timestamp: Date.now()
+        });
+    }
 
-            appendPredictionHistory({
-                phien: currentPhien,
-                du_doan: prediction,
-                doan_vi: doan_vi,
-                do_tin_cay: confidence,
-                reason: reason,
-                ket_qua_thuc: null,
-                timestamp: Date.now()
-            });
-        }
-
-        const latestOriginal = (await axios.get(API_URL)).data.data.resultList[0];
+    const latestOriginal = (await axios.get(API_URL)).data.data.resultList[0];
 
         res.json({
-            Phien: parseInt(currentPhien), // ép về số nguyên
-            Xuc_xac_1: latestOriginal?.facesList?.[0] || 0,
-            Xuc_xac_2: latestOriginal?.facesList?.[1] || 0,
-            Xuc_xac_3: latestOriginal?.facesList?.[2] || 0,
-            Tong: latestOriginal?.score || 0,
-            Ket_qua: getResultType(latestOriginal),
-            phien_hien_tai: parseInt(nextPhien), // ép về số nguyên
-            du_doan: lastPrediction.du_doan,
-            dudoan_vi: lastPrediction.doan_vi, // giữ nguyên dạng mảng
-            do_tin_cay: parseFloat(lastPrediction.do_tin_cay), // ép thành số thay vì string "%"
-            note: "Dự đoán dựa trên phân tích lịch sử và thuật toán AI" // Đổi ghi chú thành note
-        });
-    } catch (err) {
-        console.error("Lỗi predict:", err);
-        res.status(500).json({ error: "Server error" });
-    }
+    Phien: currentPhien, // Đã không còn dấu #
+    Xuc_xac_1: latestOriginal?.facesList?.[0] || 0,
+    Xuc_xac_2: latestOriginal?.facesList?.[1] || 0,
+    Xuc_xac_3: latestOriginal?.facesList?.[2] || 0,
+    Tong: latestOriginal?.score || 0,
+    Ket_qua: getResultType(latestOriginal),
+    phien_hien_tai: nextPhien, // Đã không còn dấu #
+    du_doan: lastPrediction.du_doan,
+    dudoan_vi: lastPrediction.doan_vi.join(", "),
+    do_tin_cay: lastPrediction.do_tin_cay,
+    note: lastPrediction.reason
 });
+});   // ✅ thêm dấu đóng cho app.get
 
 // --- KHỞI ĐỘNG SERVER ---
 app.listen(PORT, () => {
@@ -428,3 +416,4 @@ app.listen(PORT, () => {
     updateHistory();
     setInterval(updateHistory, UPDATE_INTERVAL);
 });
+ 
