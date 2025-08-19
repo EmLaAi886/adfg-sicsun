@@ -63,7 +63,12 @@ async function updateHistory() {
 }));
         }
     } catch (e) {
-        console.error('Lỗi cập nhật:', e.message);
+    console.error('❌ Lỗi cập nhật:', e.message);
+
+    // Nếu API trả lỗi có response
+    if (e.response) {
+        console.error('⚠️ Status:', e.response.status);
+        console.error('⚠️ Data:', JSON.stringify(e.response.data, null, 2));
     }
 }
 
