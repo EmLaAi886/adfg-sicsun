@@ -371,19 +371,17 @@ app.post('/report-result', (req, res) => {
 app.get('/predict', async (req, res) => {
     try {
         await updateHistory();
-        const latestHistory = historyData[0];
+        const latest = historyData[0] || {};
+        const currentPhien = latest.session;
 
-        if (!latestHistory) {
-            return res.status(404).json({ message: "No history data found." });
-        }
-
-        const currentSession = latestHistory.session;
-        // Thực hiện các logic dự đoán ở đây...
-        res.status(200).json({ session: currentSession, data: latestHistory });
-
-    } catch (error) {
-        console.error("Error in /predict endpoint:", error);
-        res.status(500).json({ message: "An error occurred while processing your request." });
+        res.json({
+            success: true,
+            phien: currentPhien,
+            message: "Predict endpoint hoạt động OK"
+        });
+    } catch (err) {
+        console.error("Lỗi predict:", err);
+        res.status(500).json({ error: "Server error" });
     }
 });
 
@@ -426,7 +424,6 @@ const nextPhien = currentPhien ? (parseInt(currentPhien) + 1).toString() : '1';
     du_doan: lastPrediction.du_doan,
     dudoan_vi: lastPrediction.doan_vi, // giữ nguyên dạng mảng
     do_tin_cay: parseFloat(lastPrediction.do_tin_cay) // ép thành số thay vì string "%"
-});
 });   // ✅ thêm dấu đóng cho app.get
 
 // --- KHỞI ĐỘNG SERVER ---
