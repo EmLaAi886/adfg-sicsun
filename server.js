@@ -369,9 +369,24 @@ app.post('/report-result', (req, res) => {
 });
 
 app.get('/predict', async (req, res) => {
-    await updateHistory();
-    const latest = historyData[0] || {};
-    const currentPhien = latest.session;
+    try {
+        await updateHistory();
+        const latestHistory = historyData[0];
+
+        if (!latestHistory) {
+            return res.status(404).json({ message: "No history data found." });
+        }
+
+        const currentSession = latestHistory.session;
+        // Thực hiện các logic dự đoán ở đây...
+        res.status(200).json({ session: currentSession, data: latestHistory });
+
+    } catch (error) {
+        console.error("Error in /predict endpoint:", error);
+        res.status(500).json({ message: "An error occurred while processing your request." });
+    }
+});
+
 // Sửa thành số nguyên đơn giản, không có dấu #
 const nextPhien = currentPhien ? (parseInt(currentPhien) + 1).toString() : '1';
 
