@@ -410,8 +410,8 @@ const nextPhien = currentPhien ? (parseInt(currentPhien) + 1).toString() : '1';
 });   // ✅ thêm dấu đóng cho app.get
 
 // --- KHỞI ĐỘNG SERVER ---
-app.listen(PORT, () => {
-    console.log(`🤖 Server AI dự đoán chạy tại http://localhost:${PORT}`);
+app.listen(PORT, "0.0.0.0", () => {
+    console.log(`🤖 Server AI dự đoán chạy tại port ${PORT}`);
     updateHistory();
     setInterval(updateHistory, UPDATE_INTERVAL);
 });
