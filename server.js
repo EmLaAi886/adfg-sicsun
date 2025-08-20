@@ -9,7 +9,7 @@ const PORT = 8891;
 
 // Cấu hình API và các hằng số
 const API_URL = 'https://api.wsktnus8.net/v2/history/getLastResult?gameId=ktrng_3979&size=100&tableId=39791215743193&curPage=1';
-const UPDATE_INTERVAL = 5000; // 5 giây
+const UPDATE_INTERVAL = 30000; // Tăng lên 30 giây để giảm request
 const HISTORY_FILE = path.join(__dirname, 'prediction_history.json');
 
 let historyData = [];
@@ -51,7 +51,17 @@ function appendPredictionHistory(record) {
 
 async function updateHistory() {
   try {
-    const res = await axios.get(API_URL);
+    // Thêm headers để giảm khả năng bị chặn
+    const res = await axios.get(API_URL, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'application/json',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Referer': 'https://example.com/'
+      },
+      timeout: 10000 // 10 giây timeout
+    });
+    
     if (res?.data?.data?.resultList) {
       historyData = res.data.data.resultList;
       // Chuyển đổi dữ liệu API về định dạng mới
@@ -60,9 +70,15 @@ async function updateHistory() {
         result: getResultType(item),
         totalScore: item.score
       }));
+      console.log('Cập nhật dữ liệu thành công, tổng số bản ghi:', historyData.length);
     }
   } catch (e) {
-    console.error('Lỗi cập nhật:', e.message);
+    if (e.response && e.response.status === 429) {
+      console.error('Lỗi 429: Quá nhiều request, vui lòng chờ...');
+    } else {
+      console.error('Lỗi cập nhật:', e.message);
+    }
+    // Vẫn tiếp tục chạy ngay cả khi có lỗi, sử dụng dữ liệu cũ
   }
 }
 
@@ -78,12 +94,16 @@ function getResultType(session) {
 function buildMarkovChain(history, order = 3) {
   const chain = {};
   
-  for (let i = 0; i < history.length - order; i++) {
-    const pattern = history.slice(i, i + order).map(h => h.result).join('-');
-    const next = history[i + order].result;
+  // Lọc bỏ các kết quả "Bão" vì không phổ biến
+  const filteredHistory = history.filter(h => h.result !== "Bão");
+  if (filteredHistory.length < order + 5) return chain;
+  
+  for (let i = 0; i < filteredHistory.length - order; i++) {
+    const pattern = filteredHistory.slice(i, i + order).map(h => h.result).join('-');
+    const next = filteredHistory[i + order].result;
     
     if (!chain[pattern]) {
-      chain[pattern] = { 'Tài': 0, 'Xỉu': 0, 'Bão': 0 };
+      chain[pattern] = { 'Tài': 0, 'Xỉu': 0 };
     }
     
     chain[pattern][next] = (chain[pattern][next] || 0) + 1;
@@ -91,10 +111,11 @@ function buildMarkovChain(history, order = 3) {
   
   // Tính xác suất
   for (const pattern in chain) {
-    const total = chain[pattern]['Tài'] + chain[pattern]['Xỉu'] + chain[pattern]['Bão'];
-    chain[pattern]['Tài'] = chain[pattern]['Tài'] / total;
-    chain[pattern]['Xỉu'] = chain[pattern]['Xỉu'] / total;
-    chain[pattern]['Bão'] = chain[pattern]['Bão'] / total;
+    const total = chain[pattern]['Tài'] + chain[pattern]['Xỉu'];
+    if (total > 0) {
+      chain[pattern]['Tài'] = chain[pattern]['Tài'] / total;
+      chain[pattern]['Xỉu'] = chain[pattern]['Xỉu'] / total;
+    }
   }
   
   return chain;
@@ -103,8 +124,12 @@ function buildMarkovChain(history, order = 3) {
 function findNPatterns(history, patternLength = 5, minOccurrences = 2) {
   const patterns = {};
   
-  for (let i = 0; i < history.length - patternLength + 1; i++) {
-    const pattern = history.slice(i, i + patternLength).map(h => h.result).join('-');
+  // Lọc bỏ các kết quả "Bão"
+  const filteredHistory = history.filter(h => h.result !== "Bão");
+  if (filteredHistory.length < patternLength) return patterns;
+  
+  for (let i = 0; i < filteredHistory.length - patternLength + 1; i++) {
+    const pattern = filteredHistory.slice(i, i + patternLength).map(h => h.result).join('-');
     patterns[pattern] = (patterns[pattern] || 0) + 1;
   }
   
@@ -122,7 +147,11 @@ function findNPatterns(history, patternLength = 5, minOccurrences = 2) {
 function predictWithMarkov(history, markovChain, order = 3) {
   if (history.length < order) return null;
   
-  const recentPattern = history.slice(0, order).map(h => h.result).join('-');
+  // Lọc bỏ các kết quả "Bão" gần nhất
+  const recentValidResults = history.filter(h => h.result !== "Bão").slice(0, order);
+  if (recentValidResults.length < order) return null;
+  
+  const recentPattern = recentValidResults.map(h => h.result).join('-');
   
   if (!markovChain[recentPattern]) return null;
   
@@ -147,7 +176,11 @@ function predictWithMarkov(history, markovChain, order = 3) {
 function predictWithNPattern(history, nPatterns, patternLength = 5) {
   if (history.length < patternLength - 1) return null;
   
-  const recentResults = history.slice(0, patternLength - 1).map(h => h.result);
+  // Lọc bỏ các kết quả "Bão"
+  const filteredHistory = history.filter(h => h.result !== "Bão");
+  if (filteredHistory.length < patternLength - 1) return null;
+  
+  const recentResults = filteredHistory.slice(0, patternLength - 1).map(h => h.result);
   let bestMatch = null;
   let bestPattern = null;
   let maxOccurrences = 0;
@@ -217,9 +250,24 @@ function generatePrediction(history) {
   
   // Fallback nếu không có dự đoán nào
   if (!finalPrediction) {
-    finalPrediction = history[0].result === 'Tài' ? 'Xỉu' : 'Tài';
-    finalConfidence = 55;
-    reasons.push("Fallback: Đảo ngược kết quả gần nhất");
+    // Phân tích đơn giản dựa trên tỷ lệ gần đây
+    const recent = history.slice(0, 10).filter(h => h.result !== "Bão");
+    const taiCount = recent.filter(h => h.result === "Tài").length;
+    const xiuCount = recent.filter(h => h.result === "Xỉu").length;
+    
+    if (taiCount > xiuCount + 2) {
+      finalPrediction = "Xỉu";
+      finalConfidence = 60;
+      reasons.push("Fallback: Tài xuất hiện nhiều, dự đoán Xỉu cho lượt tiếp theo");
+    } else if (xiuCount > taiCount + 2) {
+      finalPrediction = "Tài";
+      finalConfidence = 60;
+      reasons.push("Fallback: Xỉu xuất hiện nhiều, dự đoán Tài cho lượt tiếp theo");
+    } else {
+      finalPrediction = history[0].result === 'Tài' ? 'Xỉu' : 'Tài';
+      finalConfidence = 55;
+      reasons.push("Fallback: Đảo ngược kết quả gần nhất");
+    }
   }
   
   return {
@@ -275,54 +323,63 @@ app.post('/report-result', (req, res) => {
 });
 
 app.get('/predict', async (req, res) => {
-  await updateHistory();
-  const latest = historyData[0] || {};
-  const currentPhien = latest.session;
-  // Sửa thành số nguyên đơn giản, không có dấu #
-  const nextPhien = currentPhien ? (parseInt(currentPhien) + 1).toString() : '1';
+  try {
+    // Chỉ cập nhật dữ liệu nếu chưa có hoặc đã quá cũ (5 phút)
+    const now = Date.now();
+    const lastUpdateTime = global.lastUpdateTime || 0;
+    
+    if (historyData.length === 0 || now - lastUpdateTime > 300000) { // 5 phút
+      await updateHistory();
+      global.lastUpdateTime = now;
+    }
+    
+    const latest = historyData[0] || {};
+    const currentPhien = latest.session;
+    const nextPhien = currentPhien ? (parseInt(currentPhien) + 1).toString() : '1';
 
-  if (currentPhien !== lastPrediction.phien) {
-    const { prediction, confidence, reason } = generatePrediction(historyData);
-    const doan_vi = predictTopSums(historyData, prediction, 3);
+    if (currentPhien !== lastPrediction.phien) {
+      const { prediction, confidence, reason } = generatePrediction(historyData);
+      const doan_vi = predictTopSums(historyData, prediction, 3);
 
-    lastPrediction = {
-      phien: currentPhien,
-      du_doan: prediction,
-      doan_vi: doan_vi,
-      do_tin_cay: confidence,
-      reason: reason
-    };
+      lastPrediction = {
+        phien: currentPhien,
+        du_doan: prediction,
+        doan_vi: doan_vi,
+        do_tin_cay: confidence,
+        reason: reason
+      };
 
-    appendPredictionHistory({
-      phien: currentPhien,
-      du_doan: prediction,
-      doan_vi: doan_vi,
-      do_tin_cay: confidence,
-      reason: reason,
-      ket_qua_thuc: null,
-      timestamp: Date.now()
+      appendPredictionHistory({
+        phien: currentPhien,
+        du_doan: prediction,
+        doan_vi: doan_vi,
+        do_tin_cay: confidence,
+        reason: reason,
+        ket_qua_thuc: null,
+        timestamp: Date.now()
+      });
+    }
+
+    res.json({
+      Phien: currentPhien,
+      Xuc_xac_1: latest.facesList ? latest.facesList[0] : 0,
+      Xuc_xac_2: latest.facesList ? latest.facesList[1] : 0,
+      Xuc_xac_3: latest.facesList ? latest.facesList[2] : 0,
+      Tong: latest.totalScore || 0,
+      Ket_qua: latest.result || "",
+      phien_hien_tai: nextPhien,
+      du_doan: lastPrediction.du_doan,
+      dudoan_vi: lastPrediction.doan_vi.join(", "),
+      do_tin_cay: lastPrediction.do_tin_cay,
     });
+  } catch (error) {
+    console.error('Lỗi trong /predict:', error.message);
+    res.status(500).json({ error: 'Lỗi server nội bộ' });
   }
-
-  const latestOriginal = (await axios.get(API_URL)).data.data.resultList[0];
-
-  res.json({
-    Phien: currentPhien, // Đã không còn dấu #
-    Xuc_xac_1: latestOriginal?.facesList?.[0] || 0,
-    Xuc_xac_2: latestOriginal?.facesList?.[1] || 0,
-    Xuc_xac_3: latestOriginal?.facesList?.[2] || 0,
-    Tong: latestOriginal?.score || 0,
-    Ket_qua: getResultType(latestOriginal),
-    phien_hien_tai: nextPhien, // Đã không còn dấu #
-    du_doan: lastPrediction.du_doan,
-    dudoan_vi: lastPrediction.doan_vi.join(", "),
-    do_tin_cay: lastPrediction.do_tin_cay,
-  });
 });
 
 // --- KHỞI ĐỘNG SERVER ---
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🤖 Server AI dự đoán chạy tại port ${PORT}`);
-  updateHistory();
-  setInterval(updateHistory, UPDATE_INTERVAL);
+  // Không cập nhật ngay lúc khởi động, đợi request đầu tiên
 });
